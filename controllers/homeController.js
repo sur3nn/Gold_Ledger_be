@@ -394,15 +394,16 @@ exports.createBillingEntry = async (req, res) => {
 
         const [insertedBilling] = await conn.execute(
             `INSERT INTO billing
-                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight)
-             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?)`,
+                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id)
+             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?)`,
             [
                 nextBillNo,
                 resolvedFactoryId,   // auto-created or passed-in factory_id
                 resolvedRetailerId,  // auto-created or passed-in retailer_id
                 remarks,
                 totalAmount,
-                totalNetWeight
+                totalNetWeight,
+                payment_method_id
             ]
         );
 
@@ -421,9 +422,9 @@ exports.createBillingEntry = async (req, res) => {
 
         await conn.execute(
             `INSERT INTO billing_item
-                (billing_id, product_item_id,payment_type_id)
-             VALUES (?, ?,?)`,
-            [billing_id, productItemIdsCsv, payment_method_id]
+                (billing_id, product_item_id)
+             VALUES (?, ?)`,
+            [billing_id, productItemIdsCsv]
         );
 
         // ── All steps succeeded — commit the transaction ──────────────────
@@ -480,9 +481,10 @@ exports.getBillingHistory = async (req, res) => {
         const sql = `
             SELECT
         b.bill_no,
-        f.name AS factory_name,
-        r.name AS retailer_name,
-        b.bill_date,
+        pt.name as payment,
+        f.name as customer,
+        r.name as customer,
+        b.created_at as bill_date,
         b.total_amount,
         b.total_net_weight
      FROM billing b
@@ -490,6 +492,8 @@ exports.getBillingHistory = async (req, res) => {
         ON f.id = b.factory_id
      LEFT JOIN retailer r
         ON r.id = b.retailer_id
+     LEFT JOIN payment_type pt 
+        on pt.id  = b.payment_type_id
      WHERE b.deleted_at IS NULL
        AND (
             ? IS NULL
