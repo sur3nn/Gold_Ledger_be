@@ -1,8 +1,8 @@
 const db = require("../config/db");
 
-exports.getPaymentTypes = async (req, res) => {  
+exports.getPaymentTypes = async (req, res) => {
     let conn;
-try{
+    try {
         conn = await db.getConnection();
 
         const sql = `
@@ -16,15 +16,17 @@ try{
             data: rows,
         });
 
-}catch(e){
-  console.error(e);
+    } catch (e) {
+        console.error(e);
         res.status(500).json({ data: "failed", error: e.message });
-}finally{
+    } finally {
         if (conn) conn.release();
 
-}
+    }
 
 }
+
+
 
 
 
@@ -85,15 +87,15 @@ exports.createBillingEntry = async (req, res) => {
 
         // ── Destructure request body ───────────────────────────────────────
         const {
-            factory_id       = null,
-            factory_name     = null,
-            retailer_id      = null,
-            retailer_name    = null,
+            factory_id = null,
+            factory_name = null,
+            retailer_id = null,
+            retailer_name = null,
             payment_method_id,
             solid_gold_given = null,
             product_type_id,
             status_id,
-            remarks          = null,
+            remarks = null,
             products,
         } = req.body;
 
@@ -113,12 +115,12 @@ exports.createBillingEntry = async (req, res) => {
             });
         }
 
-        if (!status_id) {
-            return res.status(400).json({
-                success: false,
-                message: "status_id is required",
-            });
-        }
+        // if (!status_id) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         message: "status_id is required",
+        //     });
+        // }
 
         // Validate factory / retailer depending on product_type_id
         if (product_type_id == 1 && !factory_id && !factory_name) {
@@ -172,8 +174,9 @@ exports.createBillingEntry = async (req, res) => {
         await conn.beginTransaction();
 
         // Will hold the resolved factory_id or retailer_id (either passed in or auto-created)
-        let resolvedFactoryId  = factory_id  ? factory_id  : null;
+        let resolvedFactoryId = factory_id ? factory_id : null;
         let resolvedRetailerId = retailer_id ? retailer_id : null;
+
 
         // ─────────────────────────────────────────────────────────────────
         // STEP 0A — Factory resolution (only when product_type_id == 1)
@@ -184,36 +187,50 @@ exports.createBillingEntry = async (req, res) => {
         //   Sequence is scoped per prefix — SE and GA each have their own counter
         // ─────────────────────────────────────────────────────────────────
         if (product_type_id == 1 && !factory_id) {
-            const prefix = factory_name.trim().substring(0, 2).toUpperCase(); // "SE"
 
-            const [latestFactory] = await conn.execute(
-                `SELECT factory_code
-                 FROM factory
-                 WHERE factory_code LIKE ?
-                   AND deleted_at IS NULL
-                 ORDER BY factory_code DESC
-                 LIMIT 1`,
-                [`${prefix}%`]
+            const prefix = factory_name.trim().substring(0, 2).toUpperCase();
+
+            const [existingFactory] = await conn.execute(
+                `SELECT id FROM factory WHERE name = ? AND deleted_at IS NULL LIMIT 1`,
+                [factory_name.trim()]
             );
 
-            let nextFactoryCode;
-            if (latestFactory.length === 0) {
-                nextFactoryCode = `${prefix}001`;                              // first ever SE → SE001
+            if (existingFactory.length > 0) {
+                resolvedFactoryId = existingFactory[0].id;
             } else {
-                const numericPart = latestFactory[0].factory_code.replace(/[^0-9]/g, "");
-                const nextNum     = parseInt(numericPart, 10) + 1;
-                nextFactoryCode   = `${prefix}${String(nextNum).padStart(3, "0")}`;
+
+                const [latestFactory] = await conn.execute(
+                    `SELECT factory_code
+             FROM factory
+             WHERE factory_code LIKE ?
+             ORDER BY id DESC
+             LIMIT 1`,
+                    [`${prefix}%`]
+                );
+
+                let nextNum = 1;
+
+                if (latestFactory.length > 0) {
+                    const numericPart = latestFactory[0].factory_code.replace(/[^0-9]/g, "");
+                    nextNum = parseInt(numericPart || "0", 10) + 1;
+                }
+
+                const nextFactoryCode = await conn.execute(
+                    `SELECT CONCAT(?, LPAD(?, 3, '0')) AS code`,
+                    [prefix, nextNum]
+                );
+
+                const factoryCode = nextFactoryCode[0][0].code;
+
+                const [inserted] = await conn.execute(
+                    `INSERT INTO factory (factory_code, name)
+             VALUES (?, ?)`,
+                    [factoryCode, factory_name.trim()]
+                );
+
+                resolvedFactoryId = inserted.insertId;
             }
-
-            const [insertedFactory] = await conn.execute(
-                `INSERT INTO factory (factory_code, name)
-                 VALUES (?, ?)`,
-                [nextFactoryCode, factory_name.trim()]
-            );
-
-            resolvedFactoryId = insertedFactory.insertId;
         }
-
         // ─────────────────────────────────────────────────────────────────
         // STEP 0B — Retailer resolution (only when product_type_id == 2)
         //
@@ -222,39 +239,54 @@ exports.createBillingEntry = async (req, res) => {
         //   Code: first 2 letters uppercase + 3-digit sequence (e.g. GA001, GA002)
         // ─────────────────────────────────────────────────────────────────
         if (product_type_id == 2 && !retailer_id) {
-            const prefix = retailer_name.trim().substring(0, 2).toUpperCase(); // "GA"
 
-            const [latestRetailer] = await conn.execute(
-                `SELECT retailer_code
-                 FROM retailer
-                 WHERE retailer_code LIKE ?
-                   AND deleted_at IS NULL
-                 ORDER BY retailer_code DESC
-                 LIMIT 1`,
-                [`${prefix}%`]
+            const prefix = retailer_name.trim().substring(0, 2).toUpperCase();
+
+            const [existingRetailer] = await conn.execute(
+                `SELECT id FROM retailer WHERE name = ? AND deleted_at IS NULL LIMIT 1`,
+                [retailer_name.trim()]
             );
 
-            let nextRetailerCode;
-            if (latestRetailer.length === 0) {
-                nextRetailerCode = `${prefix}001`;                             // first ever GA → GA001
+            if (existingRetailer.length > 0) {
+                resolvedRetailerId = existingRetailer[0].id;
             } else {
-                const numericPart = latestRetailer[0].retailer_code.replace(/[^0-9]/g, "");
-                const nextNum     = parseInt(numericPart, 10) + 1;
-                nextRetailerCode  = `${prefix}${String(nextNum).padStart(3, "0")}`;
+
+                const [latestRetailer] = await conn.execute(
+                    `SELECT retailer_code
+             FROM retailer
+             WHERE retailer_code LIKE ?
+             ORDER BY id DESC
+             LIMIT 1`,
+                    [`${prefix}%`]
+                );
+
+                let nextNum = 1;
+
+                if (latestRetailer.length > 0) {
+                    const numericPart = latestRetailer[0].retailer_code.replace(/[^0-9]/g, "");
+                    nextNum = parseInt(numericPart || "0", 10) + 1;
+                }
+
+                const [codeRow] = await conn.execute(
+                    `SELECT CONCAT(?, LPAD(?, 3, '0')) AS code`,
+                    [prefix, nextNum]
+                );
+
+                const retailerCode = codeRow[0].code;
+
+                const [inserted] = await conn.execute(
+                    `INSERT INTO retailer (retailer_code, name)
+             VALUES (?, ?)`,
+                    [retailerCode, retailer_name.trim()]
+                );
+
+                resolvedRetailerId = inserted.insertId;
             }
-
-            const [insertedRetailer] = await conn.execute(
-                `INSERT INTO retailer (retailer_code, name)
-                 VALUES (?, ?)`,
-                [nextRetailerCode, retailer_name.trim()]
-            );
-
-            resolvedRetailerId = insertedRetailer.insertId;
         }
-
         // Collect all inserted product_item IDs across the loop
         const productItemIds = [];
-
+        let totalAmount = 0;
+        let totalNetWeight = 0;
         // ─────────────────────────────────────────────────────────────────
         // STEP 1 & 2 — Loop through each product in the request
         //   Step 1: Find existing product by name, or insert a new one
@@ -262,17 +294,18 @@ exports.createBillingEntry = async (req, res) => {
         // ─────────────────────────────────────────────────────────────────
         for (const product of products) {
             const {
-                quantity            = 1,
+                quantity = 1,
                 metal_id,
                 product_name,
                 item_code,
-                purity              = null,
-                carat               = null,
+                purity = null,
+                carat = null,
+                gross_weight = null,
                 gross_weight_before = null,
-                gross_weight_after  = null,
-                factory_weight      = null,
-                net_weight          = null,
-                amount              = null,
+                gross_weight_after = null,
+                factory_weight = null,
+                net_weight = null,
+                amount = null,
             } = product;
 
             // ── STEP 1: Find or create the product ───────────────────────
@@ -301,36 +334,34 @@ exports.createBillingEntry = async (req, res) => {
                 product_id = insertedProduct.insertId;
             }
 
-            // ── STEP 2: Insert product_item ───────────────────────────────
-
-            // Ownership rule — use resolved IDs (either passed-in or auto-created above)
-            //   product_type_id == 1 → factory item:  resolvedFactoryId set, resolvedRetailerId NULL
-            //   product_type_id == 2 → retailer item: resolvedRetailerId set, resolvedFactoryId NULL
-            const itemFactoryId  = product_type_id == 1 ? resolvedFactoryId  : null;
-            const itemRetailerId = product_type_id == 2 ? resolvedRetailerId : null;
-
             const [insertedItem] = await conn.execute(
                 `INSERT INTO product_item
-                    (item_code, product_id, metal_id, factory_id, retailer_id,
-                     product_type_id, status_id, purity, carat, gross_weight, quantity)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    (product_id, metal_id,product_type_id, status_id, 
+                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount,gold_given)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)`,
                 [
-                    "itm001",
+
                     product_id,
                     metal_id,
-                    itemFactoryId,
-                    itemRetailerId,
                     product_type_id,
-                    status_id,
+                    1,
                     purity,
                     carat,
-                    gross_weight_after,   // store the post-processing gross weight on the item
+                    gross_weight,
                     quantity,
+                    gross_weight_before,
+                    gross_weight_after,
+                    factory_weight,
+                    net_weight,
+                    amount,
+                    solid_gold_given
                 ]
             );
 
             // Save only the product_item id — will be joined as "1,2,3" in Step 4
             productItemIds.push(insertedItem.insertId);
+            totalAmount += amount;
+            totalNetWeight += net_weight
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -354,25 +385,24 @@ exports.createBillingEntry = async (req, res) => {
             nextBillNo = "BILL001";
         } else {
             const latestBillNo = latestBill[0].bill_no;           // e.g. "BILL009"
-            const numericPart  = latestBillNo.replace(/\D/g, ""); // "009"
-            const nextNumber   = parseInt(numericPart, 10) + 1;   // 10
+            const numericPart = latestBillNo.replace(/\D/g, ""); // "009"
+            const nextNumber = parseInt(numericPart, 10) + 1;   // 10
             // padStart(3) keeps minimum 3 digits; numbers > 999 expand naturally
-            const padded       = String(nextNumber).padStart(3, "0");
-            nextBillNo         = `BILL${padded}`;                  // "BILL010"
+            const padded = String(nextNumber).padStart(3, "0");
+            nextBillNo = `BILL${padded}`;                  // "BILL010"
         }
 
         const [insertedBilling] = await conn.execute(
             `INSERT INTO billing
-                (bill_no, bill_date, factory_id, retailer_id,
-                 payment_method_id, solid_gold_given, remarks)
-             VALUES (?, CURRENT_DATE, ?, ?, ?, ?, ?)`,
+                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight)
+             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?)`,
             [
                 nextBillNo,
                 resolvedFactoryId,   // auto-created or passed-in factory_id
                 resolvedRetailerId,  // auto-created or passed-in retailer_id
-                payment_method_id,
-                solid_gold_given,
                 remarks,
+                totalAmount,
+                totalNetWeight
             ]
         );
 
@@ -391,19 +421,19 @@ exports.createBillingEntry = async (req, res) => {
 
         await conn.execute(
             `INSERT INTO billing_item
-                (billing_id, product_item_id)
-             VALUES (?, ?)`,
-            [billing_id, productItemIdsCsv]
+                (billing_id, product_item_id,payment_type_id)
+             VALUES (?, ?,?)`,
+            [billing_id, productItemIdsCsv, payment_method_id]
         );
 
         // ── All steps succeeded — commit the transaction ──────────────────
         await conn.commit();
 
         return res.status(201).json({
-            success:    true,
-            message:    "Billing created successfully",
+            success: true,
+            message: "Billing created successfully",
             billing_id: billing_id,
-            bill_no:    nextBillNo,
+            bill_no: nextBillNo,
         });
 
     } catch (e) {
@@ -417,7 +447,7 @@ exports.createBillingEntry = async (req, res) => {
             return res.status(409).json({
                 success: false,
                 message: "Duplicate item_code — each product item must have a unique code",
-                error:   e.message,
+                error: e.message,
             });
         }
 
@@ -426,14 +456,14 @@ exports.createBillingEntry = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Invalid reference ID — check factory_id, retailer_id, metal_id, product_type_id, or status_id",
-                error:   e.message,
+                error: e.message,
             });
         }
 
         return res.status(500).json({
             success: false,
             message: "Error creating billing",
-            error:   e.message,
+            error: e.message,
         });
 
     } finally {
@@ -442,3 +472,46 @@ exports.createBillingEntry = async (req, res) => {
     }
 };
 
+exports.getBillingHistory = async (req, res) => {
+    let conn;
+    try {
+        conn = await db.getConnection();
+        const typeId = req.query.typeId
+        const sql = `
+            SELECT
+        b.bill_no,
+        f.name AS factory_name,
+        r.name AS retailer_name,
+        b.bill_date,
+        b.total_amount,
+        b.total_net_weight
+     FROM billing b
+     LEFT JOIN factory f
+        ON f.id = b.factory_id
+     LEFT JOIN retailer r
+        ON r.id = b.retailer_id
+     WHERE b.deleted_at IS NULL
+       AND (
+            ? IS NULL
+            OR (? = 1 AND b.factory_id IS NOT NULL)
+            OR (? = 2 AND b.retailer_id IS NOT NULL)
+       )
+     ORDER BY b.created_at DESC 
+        `;
+
+        const [rows] = await db.execute(sql, [typeId ?? null, typeId ?? null, typeId ?? null]);
+
+        res.json({
+            success: true,
+            data: rows,
+        });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ data: "failed", error: e.message });
+    } finally {
+        if (conn) conn.release();
+
+    }
+
+}

@@ -18,6 +18,14 @@ app.use('/api/retailer',retailerRoute)
 app.use('/api/home',homeRoute)
 app.use('/api/products',productRoute)
 
+app.get("/api/health-check", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "Server is running fine",
+        timestamp: new Date().toISOString()
+    });
+});
+
 app.listen(port,'0.0.0.0',()=>{
     console.log(`Server running on port ${port}`,);
 })
