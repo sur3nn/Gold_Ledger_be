@@ -337,8 +337,8 @@ exports.createBillingEntry = async (req, res) => {
             const [insertedItem] = await conn.execute(
                 `INSERT INTO product_item
                     (product_id, metal_id,product_type_id, status_id, 
-                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount,gold_given)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)`,
+                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?)`,
                 [
 
                     product_id,
@@ -353,8 +353,8 @@ exports.createBillingEntry = async (req, res) => {
                     gross_weight_after,
                     factory_weight,
                     net_weight,
-                    amount,
-                    solid_gold_given
+                    amount
+
                 ]
             );
 
@@ -394,8 +394,8 @@ exports.createBillingEntry = async (req, res) => {
 
         const [insertedBilling] = await conn.execute(
             `INSERT INTO billing
-                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id)
-             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?)`,
+                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id,gold_given)
+             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?,?)`,
             [
                 nextBillNo,
                 resolvedFactoryId,   // auto-created or passed-in factory_id
@@ -403,7 +403,8 @@ exports.createBillingEntry = async (req, res) => {
                 remarks,
                 totalAmount,
                 totalNetWeight,
-                payment_method_id
+                payment_method_id,
+                solid_gold_given
             ]
         );
 
@@ -508,6 +509,41 @@ exports.getBillingHistory = async (req, res) => {
         res.json({
             success: true,
             data: rows,
+        });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ data: "failed", error: e.message });
+    } finally {
+        if (conn) conn.release();
+
+    }
+
+}
+exports.getStockOverview = async (req, res) => {
+    let conn;
+    try {
+        conn = await db.getConnection();
+        const typeId = req.query.typeId
+    
+        const sql = `
+           SELECT
+             SUM(b.total_net_weight) AS total_net_weight,
+            SUM(b.gold_given) AS total_gold_given
+            FROM billing b
+            WHERE b.deleted_at IS NULL 
+            AND (
+            ? IS NULL
+            OR (? = 1 AND b.factory_id IS NOT NULL)
+            OR (? = 2 AND b.retailer_id IS NOT NULL)
+       )
+        `;
+
+        const [rows] = await db.execute(sql, [typeId ?? null, typeId ?? null, typeId ?? null]);
+
+        res.json({
+            success: true,
+            data: rows[0],
         });
 
     } catch (e) {
