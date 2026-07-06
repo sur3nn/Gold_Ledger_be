@@ -337,8 +337,8 @@ exports.createBillingEntry = async (req, res) => {
             const [insertedItem] = await conn.execute(
                 `INSERT INTO product_item
                     (product_id, metal_id,product_type_id, status_id, 
-                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount,gold_given)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)`,
+                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?)`,
                 [
 
                     product_id,
@@ -353,8 +353,8 @@ exports.createBillingEntry = async (req, res) => {
                     gross_weight_after,
                     factory_weight,
                     net_weight,
-                    amount,
-                    solid_gold_given
+                    amount
+
                 ]
             );
 
@@ -394,8 +394,8 @@ exports.createBillingEntry = async (req, res) => {
 
         const [insertedBilling] = await conn.execute(
             `INSERT INTO billing
-                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id)
-             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?)`,
+                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id,gold_given)
+             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?,?)`,
             [
                 nextBillNo,
                 resolvedFactoryId,   // auto-created or passed-in factory_id
@@ -403,7 +403,8 @@ exports.createBillingEntry = async (req, res) => {
                 remarks,
                 totalAmount,
                 totalNetWeight,
-                payment_method_id
+                payment_method_id,
+                solid_gold_given
             ]
         );
 
@@ -477,37 +478,95 @@ exports.getBillingHistory = async (req, res) => {
     let conn;
     try {
         conn = await db.getConnection();
-        const typeId = req.query.typeId
-        const sql = `
-            SELECT
-        b.bill_no,
-        pt.name as payment,
-        f.name as customer,
-        r.name as customer,
-        b.created_at as bill_date,
-        b.total_amount,
-        b.total_net_weight
-     FROM billing b
-     LEFT JOIN factory f
-        ON f.id = b.factory_id
-     LEFT JOIN retailer r
-        ON r.id = b.retailer_id
-     LEFT JOIN payment_type pt 
-        on pt.id  = b.payment_type_id
+        const typeId = req.query.typeId;
+        const search = req.query.search ? `%${req.query.search}%` : null;
+        const limit = Math.max(1, parseInt(req.query.limit) || 10);
+        const offset = Math.max(0, parseInt(req.query.offset) || 0);
+
+        const baseWhere = `
      WHERE b.deleted_at IS NULL
        AND (
             ? IS NULL
             OR (? = 1 AND b.factory_id IS NOT NULL)
             OR (? = 2 AND b.retailer_id IS NOT NULL)
        )
-     ORDER BY b.created_at DESC 
+       AND (
+            ? IS NULL
+            OR b.bill_no LIKE ?
+            OR f.name LIKE ?
+            OR r.name LIKE ?
+       )
+        `;
+
+        const dataSql = `
+            SELECT
+        b.bill_no,
+        pt.name as payment,
+        COALESCE(f.name, r.name) as customer,
+        b.created_at as bill_date,
+        b.total_amount,
+        b.total_net_weight
+     FROM billing b
+     LEFT JOIN factory f ON f.id = b.factory_id
+     LEFT JOIN retailer r ON r.id = b.retailer_id
+     LEFT JOIN payment_type pt ON pt.id = b.payment_type_id
+     ${baseWhere}
+     ORDER BY b.created_at DESC
+     LIMIT ${limit} OFFSET ${offset}
+        `;
+
+        const countSql = `
+            SELECT COUNT(*) as total
+     FROM billing b
+     LEFT JOIN factory f ON f.id = b.factory_id
+     LEFT JOIN retailer r ON r.id = b.retailer_id
+     ${baseWhere}
+        `;
+
+        const params = [typeId ?? null, typeId ?? null, typeId ?? null, search, search, search, search];
+
+        const [rows] = await db.execute(dataSql, params);
+        const [countRows] = await db.execute(countSql, params);
+
+        res.json({
+            success: true,
+            data: rows,
+            total: countRows[0]?.total ?? 0,
+            limit,
+            offset,
+        });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ data: "failed", error: e.message });
+    } finally {
+        if (conn) conn.release();
+    }
+}
+exports.getStockOverview = async (req, res) => {
+    let conn;
+    try {
+        conn = await db.getConnection();
+        const typeId = req.query.typeId
+    
+        const sql = `
+           SELECT
+             SUM(b.total_net_weight) AS total_net_weight,
+            SUM(b.gold_given) AS total_gold_given
+            FROM billing b
+            WHERE b.deleted_at IS NULL 
+            AND (
+            ? IS NULL
+            OR (? = 1 AND b.factory_id IS NOT NULL)
+            OR (? = 2 AND b.retailer_id IS NOT NULL)
+       )
         `;
 
         const [rows] = await db.execute(sql, [typeId ?? null, typeId ?? null, typeId ?? null]);
 
         res.json({
             success: true,
-            data: rows,
+            data: rows[0],
         });
 
     } catch (e) {
@@ -519,3 +578,33 @@ exports.getBillingHistory = async (req, res) => {
     }
 
 }
+exports.getMetalList = async (req, res) => {
+    let conn;
+    try {
+        conn = await db.getConnection();
+
+        const search = req.query.search ?? "";
+
+        const sql = `
+    SELECT id, name
+    FROM metal
+    WHERE name LIKE ?
+      AND deleted_at IS NULL
+    ORDER BY name ASC
+`;
+
+        const [rows] = await db.execute(sql, [`%${search}%`]);
+
+        res.json({
+            success: true,
+            count: rows.length,
+            data: rows,
+        });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ data: "failed", error: e.message });
+    } finally {
+        if (conn) conn.release();
+    }
+};

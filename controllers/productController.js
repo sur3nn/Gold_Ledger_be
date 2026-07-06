@@ -29,6 +29,7 @@ try{
         const [rows] = await db.execute(sql, [
             keyword,
         ]);
+console.log("rows",rows);
 
         res.json({
             success: true,
