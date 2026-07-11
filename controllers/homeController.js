@@ -92,7 +92,8 @@ exports.createBillingEntry = async (req, res) => {
             retailer_id = null,
             retailer_name = null,
             payment_method_id,
-            solid_gold_given = null,
+            solid_gold_given = 0,
+            total_amount_given = 0,
             product_type_id,
             status_id,
             remarks = null,
@@ -311,12 +312,14 @@ exports.createBillingEntry = async (req, res) => {
                 gross_weight_after = null,
                 factory_weight = null,
                 net_weight = null,
-                amount = null,
+
                 fig_weight,
             } = product;
-
-            if(payment_method_id==2){
-                amount=0
+            let amount;
+            if (payment_method_id == 2) {
+                amount = 0
+            } else {
+                product.amount
             }
             // ── STEP 1: Find or create the product ───────────────────────
 
@@ -405,8 +408,8 @@ exports.createBillingEntry = async (req, res) => {
 
         const [insertedBilling] = await conn.execute(
             `INSERT INTO billing
-                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id,gold_given)
-             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?,?)`,
+                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id,gold_given,total_amount_given)
+             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?,?,?)`,
             [
                 nextBillNo,
                 resolvedFactoryId,   // auto-created or passed-in factory_id
@@ -415,7 +418,8 @@ exports.createBillingEntry = async (req, res) => {
                 totalAmount,
                 totalNetWeight,
                 payment_method_id,
-                solid_gold_given
+                solid_gold_given,
+                total_amount_given
             ]
         );
 
@@ -559,11 +563,13 @@ exports.getStockOverview = async (req, res) => {
     try {
         conn = await db.getConnection();
         const typeId = req.query.typeId
-    
+
         const sql = `
            SELECT
              SUM(b.total_net_weight) AS total_net_weight,
-            SUM(b.gold_given) AS total_gold_given
+            SUM(b.gold_given) AS total_gold_given,
+            SUM(b.total_amount) AS total_amount,
+            SUM(b.total_amount_given) AS Total_amount_given
             FROM billing b
             WHERE b.deleted_at IS NULL 
             AND (
@@ -611,6 +617,39 @@ exports.getMetalList = async (req, res) => {
             count: rows.length,
             data: rows,
         });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ data: "failed", error: e.message });
+    } finally {
+        if (conn) conn.release();
+    }
+};
+
+exports.getUserDetails = async (req, res) => {
+    let conn;
+    try {
+        conn = await db.getConnection();
+
+        const userId = req.user.id;
+
+        const sql = `
+   select user_name from users u where u.Id  = ? and u.deleted_at is null
+`;
+
+        const [rows] = await db.execute(sql, [userId]);
+        if (rows.length > 0) {
+
+            res.json({
+                success: true,
+                data: rows[0],
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                data: "No data Exists",
+            });
+        }
 
     } catch (e) {
         console.error(e);

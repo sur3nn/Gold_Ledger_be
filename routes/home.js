@@ -10,4 +10,5 @@ router.post("/create-billing",authMiddleware,homeController.createBillingEntry)
 router.get("/billing-history",authMiddleware,homeController.getBillingHistory)
 router.get("/stock-overview",authMiddleware,homeController.getStockOverview)
 router.get("/metal",authMiddleware, homeController.getMetalList);
+router.get("/user",authMiddleware, homeController.getUserDetails);
 module.exports = router
