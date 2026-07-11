@@ -154,6 +154,12 @@ exports.createBillingEntry = async (req, res) => {
                     message: `products[${i}]: product_name is required`,
                 });
             }
+            if (!p.fig_weight || !String(p.fig_weight).trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: `products[${i}]: fig_weight is required`,
+                });
+            }
 
             // if (!p.item_code || !String(p.item_code).trim()) {
             //     return res.status(400).json({
@@ -306,8 +312,12 @@ exports.createBillingEntry = async (req, res) => {
                 factory_weight = null,
                 net_weight = null,
                 amount = null,
+                fig_weight,
             } = product;
 
+            if(payment_method_id==2){
+                amount=0
+            }
             // ── STEP 1: Find or create the product ───────────────────────
 
             const [existingProduct] = await conn.execute(
@@ -337,8 +347,8 @@ exports.createBillingEntry = async (req, res) => {
             const [insertedItem] = await conn.execute(
                 `INSERT INTO product_item
                     (product_id, metal_id,product_type_id, status_id, 
-                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?)`,
+                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount,fig_weight)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)`,
                 [
 
                     product_id,
@@ -353,7 +363,8 @@ exports.createBillingEntry = async (req, res) => {
                     gross_weight_after,
                     factory_weight,
                     net_weight,
-                    amount
+                    amount,
+                    fig_weight
 
                 ]
             );
