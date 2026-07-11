@@ -319,7 +319,7 @@ exports.createBillingEntry = async (req, res) => {
             if (payment_method_id == 2) {
                 amount = 0
             } else {
-                product.amount
+              amount =  product.amount
             }
             // ── STEP 1: Find or create the product ───────────────────────
 
