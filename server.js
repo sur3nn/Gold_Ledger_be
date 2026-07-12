@@ -10,25 +10,25 @@ app.use(cors({
     origin:"*"
 }));
 
-const factoryRoute = require("./routes/factory")
-const retailerRoute = require("./routes/retailer")
-const homeRoute = require("./routes/home")
-const productRoute = require("./routes/product")
-const creditRoute = require("./routes/credit");
-const dashboardRoute = require("./routes/dashboard");
-const reportRoute = require("./routes/report");
-const authRoute = require("./routes/auth");
+// const factoryRoute = require("./routes/factory")
+// const retailerRoute = require("./routes/retailer")
+// const homeRoute = require("./routes/home")
+// const productRoute = require("./routes/product")
+// const creditRoute = require("./routes/credit");
+// const dashboardRoute = require("./routes/dashboard");
+// const reportRoute = require("./routes/report");
+// const authRoute = require("./routes/auth");
 
 
 
-app.use('/api/factory',factoryRoute)
-app.use('/api/retailer',retailerRoute)
-app.use('/api/home',homeRoute)
-app.use('/api/products',productRoute)
-app.use("/api/credit", creditRoute);
-app.use("/api/dashboard", dashboardRoute);
-app.use("/api/reports", reportRoute);
-app.use("/api/login", authRoute);
+// app.use('/api/factory',factoryRoute)
+// app.use('/api/retailer',retailerRoute)
+// app.use('/api/home',homeRoute)
+// app.use('/api/products',productRoute)
+// app.use("/api/credit", creditRoute);
+// app.use("/api/dashboard", dashboardRoute);
+// app.use("/api/reports", reportRoute);
+// app.use("/api/login", authRoute);
 
 app.get("/api/health-check", (req, res) => {
     res.status(200).json({
