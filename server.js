@@ -20,15 +20,32 @@ const reportRoute = require("./routes/report");
 const authRoute = require("./routes/auth");
 
 
+console.log("initial");
 
 app.use('/api/factory',factoryRoute)
+console.log("factory");
+
 app.use('/api/retailer',retailerRoute)
+console.log("retailer");
+
 app.use('/api/home',homeRoute)
+console.log("home");
+
 app.use('/api/products',productRoute)
+console.log("product");
+
 app.use("/api/credit", creditRoute);
+console.log("credit");
+
 app.use("/api/dashboard", dashboardRoute);
+console.log("dash");
+
 app.use("/api/reports", reportRoute);
+console.log("report");
+
 app.use("/api/login", authRoute);
+console.log("login");
+
 
 app.get("/api/health-check", (req, res) => {
     res.status(200).json({
