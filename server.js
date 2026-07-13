@@ -33,11 +33,21 @@ app.use("/api/login", authRoute);
 
 
 app.get("/api/health-check", (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: "Server is running fine",
-        timestamp: new Date().toISOString()
+   try {
+    const [rows] = await db.query("SELECT 1 AS test");
+
+    res.json({
+      success: true,
+      data: rows
     });
+
+  } catch (error) {
+    console.log("DB ERROR:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 app.listen(port,()=>{
