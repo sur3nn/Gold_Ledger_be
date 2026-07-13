@@ -3,7 +3,7 @@ const express = require("express")
 const router = express.Router()
 const homeController = require("../controllers/homeController")
 console.log("routes");
-const authMiddleware = require("../middleware/AuthMiddleware");
+const authMiddleware = require("../middleware/AuthMiddleWare");
 
 router.get("/paymentTypes",authMiddleware,homeController.getPaymentTypes)
 router.post("/create-billing",authMiddleware,homeController.createBillingEntry)

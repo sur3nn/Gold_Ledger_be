@@ -2,7 +2,7 @@ const express = require("express");
 const { dashboardSummary } = require("../controllers/dashboardCOntroller");
 
 const router = express.Router();
-const authMiddleware = require("../middleware/AuthMiddleware");
+const authMiddleware = require("../middleware/AuthMiddleWare");
 
 
 

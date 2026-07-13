@@ -4,7 +4,7 @@ const router = express.Router()
 const reportController = require("../controllers/Reportscontroller ")
 const salesController = require("../controllers/Salescontroller")
 const purchaseController = require("../controllers/Purchasecontroller ")
-const authMiddleware = require("../middleware/AuthMiddleware");
+const authMiddleware = require("../middleware/AuthMiddleWare");
 
 console.log("report");
 
