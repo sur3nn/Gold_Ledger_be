@@ -1,8 +1,13 @@
-
+console.log("Server file started");
+process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err);
+});
 
 require("dotenv").config()
+
 const express = require("express")
 const cors = require("cors")
+const db = require("./config/db"); 
 
 const app = express()
 const port = process.env.PORT || 5000;
@@ -32,8 +37,8 @@ app.use("/api/reports", reportRoute);
 app.use("/api/login", authRoute);
 
 
-app.get("/api/health-check", (req, res) => {
-   try {
+app.get("/api/health-check", async (req, res) => {
+  try {
     const [rows] = await db.query("SELECT 1 AS test");
 
     res.json({
@@ -43,6 +48,7 @@ app.get("/api/health-check", (req, res) => {
 
   } catch (error) {
     console.log("DB ERROR:", error);
+
     res.status(500).json({
       success: false,
       error: error.message
