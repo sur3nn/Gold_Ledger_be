@@ -11,21 +11,7 @@ const connection = mysql.createPool({
     connectionLimit: 20, 
     queueLimit: 0
 });
-// Test database connection on startup
-(async () => {
-    try {
-        const conn = await connection.getConnection();
 
-        console.log("✅ Database connected successfully");
-        console.log(`📌 Host: ${process.env.DB_HOST}`);
-        console.log(`📂 Database: ${process.env.DB_NAME}`);
-
-        conn.release();
-    } catch (err) {
-        console.error("❌ Database connection failed");
-        console.error(err.message);
-    }
-})();
 
 
 module.exports = connection
