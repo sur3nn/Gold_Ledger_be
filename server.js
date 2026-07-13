@@ -1,3 +1,8 @@
+
+console.log("Server file started");
+process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err);
+});
 require("dotenv").config()
 const express = require("express")
 const cors = require("cors")
