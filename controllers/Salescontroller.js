@@ -58,6 +58,7 @@ exports.salesReport = async (req, res) => {
                     pi.carat,
                     pi.factory_weight ,
                     pi.fig_weight ,
+                    pi.category,
                     pi.gross_weight ,
                     pi.gross_weight_after ,
                     pi.gross_weight_before ,

@@ -11,4 +11,5 @@ router.get("/billing-history",authMiddleware,homeController.getBillingHistory)
 router.get("/stock-overview",authMiddleware,homeController.getStockOverview)
 router.get("/metal",authMiddleware, homeController.getMetalList);
 router.get("/user",authMiddleware, homeController.getUserDetails);
+router.get("/credit-details",authMiddleware, homeController.creditGivenTaken);
 module.exports = router

@@ -54,6 +54,9 @@ let conn;
             error: err.message
         });
 
+    }finally{
+         // Always release the connection back to the pool
+        if (conn) conn.release();
     }
 
 };

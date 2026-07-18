@@ -29,7 +29,7 @@ exports.creditManagement = async (req, res) => {
 
                 b.id,
                 b.bill_no,
-                b.bill_date,
+                DATE_FORMAT(b.created_at, '%d %M %Y %h:%i %p') AS bill_date,
 
                 COALESCE(f.name, r.name) AS party_name,
 

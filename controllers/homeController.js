@@ -161,6 +161,12 @@ exports.createBillingEntry = async (req, res) => {
                     message: `products[${i}]: fig_weight is required`,
                 });
             }
+            if (!p.category || !String(p.category).trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: `products[${i}]: category is required`,
+                });
+            }
 
             // if (!p.item_code || !String(p.item_code).trim()) {
             //     return res.status(400).json({
@@ -312,15 +318,16 @@ exports.createBillingEntry = async (req, res) => {
                 gross_weight_after = null,
                 factory_weight = null,
                 net_weight = null,
-
                 fig_weight,
-            } = product;
-            let amount;
-            if (payment_method_id == 2) {
+                category,
                 amount = 0
-            } else {
-              amount =  product.amount
-            }
+            } = product;
+            // let amount;
+            // if (payment_method_id == 2) {
+            //     amount = 0
+            // } else {
+            //   amount =  product.amount
+            // }
             // ── STEP 1: Find or create the product ───────────────────────
 
             const [existingProduct] = await conn.execute(
@@ -350,8 +357,8 @@ exports.createBillingEntry = async (req, res) => {
             const [insertedItem] = await conn.execute(
                 `INSERT INTO product_item
                     (product_id, metal_id,product_type_id, status_id, 
-                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount,fig_weight)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)`,
+                    purity, carat, gross_weight, quantity,gross_weight_before,gross_weight_after,factory_weight,net_weight,amount,fig_weight,category)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)`,
                 [
 
                     product_id,
@@ -367,7 +374,8 @@ exports.createBillingEntry = async (req, res) => {
                     factory_weight,
                     net_weight,
                     amount,
-                    fig_weight
+                    fig_weight,
+                    category
 
                 ]
             );
@@ -385,25 +393,37 @@ exports.createBillingEntry = async (req, res) => {
         // Logic:  Fetch latest bill_no → strip non-digits → increment → pad to 3 digits
         // ─────────────────────────────────────────────────────────────────
 
+        let prefix;
+
+        if (resolvedFactoryId) {
+            prefix = "PURBILL";
+        } else if (resolvedRetailerId) {
+            prefix = "SALBILL";
+        } else {
+            throw new Error("Either factory_id or retailer_id must be provided.");
+        }
+
+        // Get latest bill of that type
         const [latestBill] = await conn.execute(
-            `SELECT bill_no
-             FROM billing
-             ORDER BY id DESC
-             LIMIT 1`
+            `
+    SELECT bill_no
+    FROM billing
+    WHERE bill_no LIKE ?
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+            [`${prefix}%`]
         );
 
         let nextBillNo;
 
         if (latestBill.length === 0) {
-            // No bills exist yet — start from BILL001
-            nextBillNo = "BILL001";
+            nextBillNo = `${prefix}001`;
         } else {
-            const latestBillNo = latestBill[0].bill_no;           // e.g. "BILL009"
-            const numericPart = latestBillNo.replace(/\D/g, ""); // "009"
-            const nextNumber = parseInt(numericPart, 10) + 1;   // 10
-            // padStart(3) keeps minimum 3 digits; numbers > 999 expand naturally
-            const padded = String(nextNumber).padStart(3, "0");
-            nextBillNo = `BILL${padded}`;                  // "BILL010"
+            const latestBillNo = latestBill[0].bill_no; // e.g. PURBILL009
+            const numericPart = latestBillNo.replace(/\D/g, ""); // 009
+            const nextNumber = parseInt(numericPart, 10) + 1;
+            nextBillNo = `${prefix}${String(nextNumber).padStart(3, "0")}`;
         }
 
         const [insertedBilling] = await conn.execute(
@@ -563,23 +583,47 @@ exports.getStockOverview = async (req, res) => {
     try {
         conn = await db.getConnection();
         const typeId = req.query.typeId
+        const factory_retail_id = req.query.factory_retail_id;
+
+        if (!(typeId)) {
+            return res.status(400).json({
+                success: false,
+                message: "typeId is required and must be 1 (Factory) or 2 (Retailer)."
+            });
+        }
+
+        if (
+            req.query.factory_retail_id === undefined ||
+            isNaN(factory_retail_id) ||
+            factory_retail_id <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "factory_retail_id is required and must be a positive number."
+            });
+        }
 
         const sql = `
-           SELECT
-             SUM(b.total_net_weight) AS total_net_weight,
-            SUM(b.gold_given) AS total_gold_given,
-            SUM(b.total_amount) AS total_amount,
-            SUM(b.total_amount_given) AS Total_amount_given
+            SELECT
+                SUM(b.total_net_weight) AS total_net_weight,
+                SUM(b.gold_given) AS total_gold_given,
+                SUM(b.total_amount) AS total_amount,
+                SUM(b.total_amount_given) AS total_amount_given
             FROM billing b
-            WHERE b.deleted_at IS NULL 
+            WHERE b.deleted_at IS NULL
             AND (
-            ? IS NULL
-            OR (? = 1 AND b.factory_id IS NOT NULL)
-            OR (? = 2 AND b.retailer_id IS NOT NULL)
-       )
+                (? = 1 AND b.factory_id = ?)
+                OR
+                (? = 2 AND b.retailer_id = ?)
+            )
         `;
 
-        const [rows] = await db.execute(sql, [typeId ?? null, typeId ?? null, typeId ?? null]);
+        const [rows] = await db.execute(sql, [
+            typeId,
+            factory_retail_id,
+            typeId,
+            factory_retail_id
+        ]);
 
         res.json({
             success: true,
@@ -638,6 +682,69 @@ exports.getUserDetails = async (req, res) => {
 `;
 
         const [rows] = await db.execute(sql, [userId]);
+        if (rows.length > 0) {
+
+            res.json({
+                success: true,
+                data: rows[0],
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                data: "No data Exists",
+            });
+        }
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ data: "failed", error: e.message });
+    } finally {
+        if (conn) conn.release();
+    }
+};
+
+
+exports.creditGivenTaken = async (req, res) => {
+    let conn;
+    try {
+        conn = await db.getConnection();
+
+        const typeId = req.query.typeId;
+        const factory_retail_id = req.query.factory_retail_id;
+        if (!(typeId)) {
+            return res.status(400).json({
+                success: false,
+                message: "typeId is required and must be 1 (Factory) or 2 (Retailer)."
+            });
+        }
+
+        if (
+            req.query.factory_retail_id === undefined ||
+            isNaN(factory_retail_id) ||
+            factory_retail_id <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "factory_retail_id is required and must be a positive number."
+            });
+        }
+
+        const sql = `
+    select SUM(gold_given) AS total_credit_given,
+    SUM(total_net_weight) AS total_credit_taken 
+    from billing b 
+    WHERE b.deleted_at IS NULL
+            AND (
+                (? = 1 AND b.factory_id = ?)
+                OR
+                (? = 2 AND b.retailer_id = ?))
+`;
+
+        const [rows] = await db.execute(sql, [
+            typeId,
+            factory_retail_id,
+            typeId,
+            factory_retail_id]);
         if (rows.length > 0) {
 
             res.json({
