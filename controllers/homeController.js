@@ -545,6 +545,7 @@ exports.getBillingHistory = async (req, res) => {
 
         const dataSql = `
             SELECT
+            b.id,
         b.bill_no,
         pt.name as payment,
         COALESCE(f.name, r.name) as customer,
@@ -843,7 +844,7 @@ exports.getBillDetails = async (req, res) => {
                     from billing b
                    left join factory f on f.id = b.factory_id and f.deleted_at is null
                    left join retailer r on r.id = b.retailer_id and r.deleted_at is null
-                    where b.id =32 and b.deleted_at is null
+                    where b.id =? and b.deleted_at is null
 `
 
         const [rows] = await db.execute(sql, [id
