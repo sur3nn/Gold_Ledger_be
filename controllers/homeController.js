@@ -94,6 +94,11 @@ exports.createBillingEntry = async (req, res) => {
             payment_method_id,
             solid_gold_given = 0,
             total_amount_given = 0,
+            box_weight_before = null,
+            box_weight_after = null,
+            total_amt_with_gst = null,
+            gst = null,
+            sgst = null,
             product_type_id,
             status_id,
             remarks = null,
@@ -428,8 +433,8 @@ exports.createBillingEntry = async (req, res) => {
 
         const [insertedBilling] = await conn.execute(
             `INSERT INTO billing
-                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id,gold_given,total_amount_given)
-             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?,?,?)`,
+                (bill_no, bill_date, factory_id, retailer_id, remarks,total_amount,total_net_weight,payment_type_id,gold_given,total_amount_given,box_weight_before,box_weight_after,gst,sgst,total_amt_with_gst)
+             VALUES (?, CURRENT_DATE, ?, ?, ?,?,?,?,?,?,?,?,?,?,?)`,
             [
                 nextBillNo,
                 resolvedFactoryId,   // auto-created or passed-in factory_id
@@ -439,7 +444,12 @@ exports.createBillingEntry = async (req, res) => {
                 totalNetWeight,
                 payment_method_id,
                 solid_gold_given,
-                total_amount_given
+                total_amount_given,
+                box_weight_before,
+                box_weight_after,
+                gst,
+                sgst,
+                total_amt_with_gst
             ]
         );
 
@@ -540,7 +550,12 @@ exports.getBillingHistory = async (req, res) => {
         COALESCE(f.name, r.name) as customer,
         b.created_at as bill_date,
         b.total_amount,
-        b.total_net_weight
+        b.total_net_weight,
+        b.box_weight_before,
+        b.box_weight_after,
+        b.gst,
+        b.sgst,
+        b.total_amt_with_gst
      FROM billing b
      LEFT JOIN factory f ON f.id = b.factory_id
      LEFT JOIN retailer r ON r.id = b.retailer_id

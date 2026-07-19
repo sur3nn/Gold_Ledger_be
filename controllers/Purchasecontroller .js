@@ -7,6 +7,8 @@ exports.purchaseReport = async (req, res) => {
         conn = await db.getConnection();
 
         const { from, to } = req.query;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = parseInt(req.query.offset) || 0;
         const params = [];
         let dateFilter = "";
 
@@ -34,6 +36,8 @@ exports.purchaseReport = async (req, res) => {
             AND b.factory_id IS NOT NULL
             ${dateFilter}
             ORDER BY b.bill_date DESC
+             LIMIT ${limit}
+             OFFSET ${offset}
         `;
 
         const totalSql = `
@@ -43,9 +47,16 @@ exports.purchaseReport = async (req, res) => {
             AND b.factory_id IS NOT NULL
             ${dateFilter}
         `;
-
+const countSql = `
+    SELECT COUNT(*) AS total
+    FROM billing b
+    WHERE b.deleted_at IS NULL
+    AND b.factory_id IS NOT NULL
+    ${dateFilter}
+`;
         const [records] = await db.execute(recordsSql, params);
         const [totalRows] = await db.execute(totalSql, params);
+        const [countRows] = await db.execute(countSql, params);
 
         // Attach empty products array up front so bills with no
         // billing_item rows (or that get filtered out below) still
@@ -65,7 +76,7 @@ exports.purchaseReport = async (req, res) => {
                     pi.carat,
                     pi.factory_weight ,
                     pi.fig_weight ,
-                    pi.catgory,
+                    pi.category,
                     pi.gross_weight ,
                     pi.gross_weight_after ,
                     pi.gross_weight_before ,
@@ -120,6 +131,9 @@ exports.purchaseReport = async (req, res) => {
         res.json({
             success: true,
             totalPurchaseAmount: totalRows[0].total_purchase_amount,
+             total: countRows[0].total,
+            limit,
+            offset,
             records,
         });
 

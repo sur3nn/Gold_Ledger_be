@@ -30,9 +30,11 @@ let conn;
                 message: "Invalid User_name or Password"
             });
 
+
         const token = jwt.sign(
             {
                 id: user.Id,
+                role_id: user.role_id
 
             },
             jwtConfig.secret,
@@ -44,6 +46,8 @@ let conn;
         res.json({
             success: true,
             message: "Login Successful",
+            role_id:user.role_id,
+            role_name:user.role,
             token
         });
 

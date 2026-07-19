@@ -32,7 +32,7 @@ exports.creditManagement = async (req, res) => {
                 DATE_FORMAT(b.created_at, '%d %M %Y %h:%i %p') AS bill_date,
 
                 COALESCE(f.name, r.name) AS party_name,
-
+                COALESCE(f.id, r.id) AS party_Id,
                 CASE
                     WHEN b.factory_id IS NOT NULL
                     THEN 'Factory'
@@ -62,7 +62,7 @@ exports.creditManagement = async (req, res) => {
                 COALESCE(f.name, r.name) LIKE ?
             )
 
-            ORDER BY b.created_at DESC
+            ORDER BY b.created_at DESC 
 
             LIMIT ${limit}
             OFFSET ${offset}
