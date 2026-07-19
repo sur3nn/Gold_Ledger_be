@@ -20,7 +20,7 @@ exports.purchaseReport = async (req, res) => {
         const recordsSql = `
             SELECT
                 b.id,
-                b.bill_date AS date,
+                DATE_FORMAT(b.created_at, '%d %M %Y %h:%i %p') AS date,
                 f.name AS factorySource,
                 b.total_net_weight AS weight,
                 CASE

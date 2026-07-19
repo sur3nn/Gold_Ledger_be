@@ -780,3 +780,95 @@ exports.creditGivenTaken = async (req, res) => {
         if (conn) conn.release();
     }
 };
+exports.getBillDetails = async (req, res) => {
+    let conn;
+    try {
+        conn = await db.getConnection();
+
+        const id = req.query.bill_id;
+        if (!(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "bill_id is required "
+            });
+        }
+
+        const sql = `
+     SELECT
+                    bi.billing_id,
+                    b.bill_no,
+                    p.name AS product_name,
+                    pi.amount ,
+                    pi.net_weight,
+                    pi.carat,
+                    pi.factory_weight ,
+                    pi.fig_weight ,
+                    pi.category,
+                    pi.gross_weight ,
+                    pi.gross_weight_after ,
+                    pi.gross_weight_before ,
+                    pi.purity ,
+                    pi.quantity ,
+                    pi.category,
+                    m.name as metalName,
+                    pt.name  as product_type
+                    
+                FROM billing_item bi
+                JOIN product_item pi
+                    ON FIND_IN_SET(pi.id, bi.product_item_id) > 0
+                    AND pi.deleted_at IS NULL
+                JOIN product p
+                    ON p.id = pi.product_id
+                    AND p.deleted_at IS null
+                  join metal m on m.id = pi.metal_id and pi.deleted_at IS null
+                  join product_type pt on pt.id = pi.product_type_id  and pt.deleted_at IS null
+                  join billing b on b.id = bi.billing_id and b.deleted_at IS null
+                WHERE bi.billing_id = ?
+                AND bi.deleted_at IS NULL
+                
+`;
+
+        const billSql = `select bill_no ,
+                    DATE_FORMAT(b.created_at, '%d %M %Y %h:%i %p') AS bill_date,
+                    b.total_amount ,
+                    b.total_net_weight ,
+                    b.gold_given ,
+                    b.total_amount_given ,
+                    b.box_weight_before ,
+                    b.box_weight_after ,
+                    b.gst ,
+                    b.sgst ,
+                    b.total_amt_with_gst ,
+                    COALESCE(r.name,f.name) as party_name
+                    from billing b
+                   left join factory f on f.id = b.factory_id and f.deleted_at is null
+                   left join retailer r on r.id = b.retailer_id and r.deleted_at is null
+                    where b.id =32 and b.deleted_at is null
+`
+
+        const [rows] = await db.execute(sql, [id
+        ]);
+
+        const [billDetails] = await db.execute(billSql, [id
+        ]);
+        if (billDetails.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Bill not found"
+            });
+        }
+        billDetails[0].products = rows;
+        res.json({
+            success: true,
+            data: billDetails[0],
+
+        });
+
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ data: "failed", error: e.message });
+    } finally {
+        if (conn) conn.release();
+    }
+};

@@ -17,7 +17,7 @@ exports.salesReport = async (req, res) => {
         const recordsSql = `
             SELECT
                 b.id,
-                b.bill_date AS date,
+                DATE_FORMAT(b.created_at, '%d %M %Y %h:%i %p') AS date,
                 r.name AS customer,
                 b.total_net_weight AS weight,
                 b.total_amount AS amount,
